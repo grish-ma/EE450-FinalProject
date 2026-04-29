@@ -200,7 +200,7 @@ int main() {
         return 1;
     }
 
-    std::cout << "Appointment Server is up and running using UDP on port\n" << APPT_UDP_PORT << "." << std::endl;
+    std::cout << "Appointment Server is up and running using UDP on port " << APPT_UDP_PORT << "." << std::endl;
 
     while (true) {
         std::string payload;

@@ -85,7 +85,7 @@ int main() {
         return 1;
     }
 
-    std::cout << "Prescription Server is up and running using UDP on port\n" << PRESC_UDP_PORT << "." << std::endl;
+    std::cout << "Prescription Server is up and running using UDP on port " << PRESC_UDP_PORT << "." << std::endl;
 
     while (true) {
         std::string payload;

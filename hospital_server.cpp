@@ -92,7 +92,7 @@ int main() {
         return 1;
     }
 
-    std::cout << "Hospital Server is up and running using UDP on port\n" << HOSP_UDP_PORT << "." << std::endl;
+    std::cout << "Hospital Server is up and running using UDP on port " << HOSP_UDP_PORT << "." << std::endl;
 
     while (true) {
         int conn = accept(listener, NULL, NULL);
