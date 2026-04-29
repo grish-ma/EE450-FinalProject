@@ -17,6 +17,7 @@ struct PrescRow {
     std::string frequency;
 };
 
+// Split a line by spaces and remove empty pieces.
 static std::vector<std::string> split_ws(const std::string &s) {
     std::vector<std::string> raw = split_char(s, ' ');
     std::vector<std::string> out;
@@ -28,6 +29,7 @@ static std::vector<std::string> split_ws(const std::string &s) {
     return out;
 }
 
+// Read prescriptions from prescriptions.txt into memory.
 static std::vector<PrescRow> load_rows(const std::string &path) {
     std::vector<PrescRow> out;
     std::vector<std::string> lines;
@@ -48,6 +50,7 @@ static std::vector<PrescRow> load_rows(const std::string &path) {
     return out;
 }
 
+// Save in-memory prescription rows back to file
 static bool save_rows(const std::string &path, const std::vector<PrescRow> &rows) {
     std::vector<std::string> lines;
     for (size_t i = 0; i < rows.size(); ++i) {
@@ -56,6 +59,7 @@ static bool save_rows(const std::string &path, const std::vector<PrescRow> &rows
     return write_lines(path, lines);
 }
 
+// Replace old record for patient, then add new
 static void upsert(std::vector<PrescRow> &rows, const PrescRow &row) {
     std::vector<PrescRow> filtered;
     for (size_t i = 0; i < rows.size(); ++i) {
@@ -67,6 +71,7 @@ static void upsert(std::vector<PrescRow> &rows, const PrescRow &row) {
     rows = filtered;
 }
 
+// Find a patient's prescription record.
 static bool find_by_patient(const std::vector<PrescRow> &rows, const std::string &patient_hash, PrescRow &row_out) {
     for (size_t i = 0; i < rows.size(); ++i) {
         if (rows[i].patient_hash == patient_hash) {
@@ -78,8 +83,10 @@ static bool find_by_patient(const std::vector<PrescRow> &rows, const std::string
 }
 
 int main() {
+    // Load file data once when server starts
     std::vector<PrescRow> rows = load_rows("prescriptions.txt");
 
+    // Create and bind UDP socket for Prescription Server
     int udp_fd = create_udp_bound_socket(HOST, PRESC_UDP_PORT);
     if (udp_fd < 0) {
         return 1;
@@ -87,7 +94,9 @@ int main() {
 
     std::cout << "Prescription Server is up and running using UDP on port " << PRESC_UDP_PORT << "." << std::endl;
 
+    // Keep serving requests until Ctrl-C.
     while (true) {
+        // Wait for one UDP message.
         std::string payload;
         std::string ip;
         int port = 0;
@@ -100,6 +109,7 @@ int main() {
         }
 
         if (req.type == "prescribe_req") {
+            // Doctor is saving a prescription for a patient.
             std::string doctor = req.fields["doctor"];
             std::string patient_hash = req.fields["patient_hash"];
             std::string treatment = req.fields["treatment"];
@@ -120,6 +130,7 @@ int main() {
             resp.fields["ok"] = "1";
             udp_send_to(udp_fd, ip, port, proto_serialize(resp));
         } else if (req.type == "view_prescription_req") {
+            // Doctor or patient is asking to view prescription.
             std::string patient_hash = req.fields["patient_hash"];
             std::cout << "The prescription server has received a request to view the\nprescription for the user with hash suffix: "
                       << hash_suffix5(patient_hash) << "." << std::endl;

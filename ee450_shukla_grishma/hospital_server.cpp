@@ -24,6 +24,7 @@ static std::vector<std::string> split_ws(const std::string &s) {
     return out;
 }
 
+// Load doctor hashes and treatment table from hospital.txt.
 static void load_hospital_data(
     const std::string &path,
     std::map<std::string, std::string> &doctor_hash_to_name,
@@ -57,6 +58,7 @@ static void load_hospital_data(
     }
 }
 
+// Send one UDP request and wait for one UDP response.
 static bool udp_rpc(int udp_fd, int dest_port, const ProtoMessage &req, ProtoMessage &resp) {
     std::string encoded = proto_serialize(req);
     if (!udp_send_to(udp_fd, HOST, dest_port, encoded)) {
@@ -69,6 +71,7 @@ static bool udp_rpc(int udp_fd, int dest_port, const ProtoMessage &req, ProtoMes
     return proto_parse(payload, resp);
 }
 
+// Safe helper to read a field from parsed message.
 static std::string getf(const ProtoMessage &m, const std::string &key, const std::string &fallback = "") {
     std::map<std::string, std::string>::const_iterator it = m.fields.find(key);
     if (it == m.fields.end()) {
@@ -82,6 +85,7 @@ static bool is_true(const std::string &v) {
 }
 
 int main() {
+    // Hospital uses one UDP socket (for backend RPC) and one TCP listener (for clients).
     int udp_fd = create_udp_bound_socket(HOST, HOSP_UDP_PORT);
     if (udp_fd < 0) {
         return 1;
@@ -94,7 +98,9 @@ int main() {
 
     std::cout << "Hospital Server is up and running using UDP on port " << HOSP_UDP_PORT << "." << std::endl;
 
+    // Keep running until Ctrl-C.
     while (true) {
+        // Accept one client TCP request.
         int conn = accept(listener, NULL, NULL);
         if (conn < 0) {
             continue;
@@ -113,6 +119,7 @@ int main() {
         }
 
         if (req.type == "auth") {
+            // Client login path: forward auth to Authentication Server.
             std::string u_hash = getf(req, "u_hash");
             std::string p_hash = getf(req, "p_hash");
             std::string suffix = hash_suffix5(u_hash);
@@ -156,6 +163,7 @@ int main() {
             std::cout << "Hospital Server has sent the response from\nAuthentication Server to the client using TCP over port\n"
                       << HOSP_TCP_PORT << "." << std::endl;
         } else if (req.type == "lookup_doctors") {
+            // Patient command: lookup.
             std::string u_hash = getf(req, "u_hash");
             std::string suffix = hash_suffix5(u_hash);
             std::cout << "Hospital Server received a lookup request from a user\nwith a hash suffix " << suffix << " over port " << HOSP_TCP_PORT << "." << std::endl;
@@ -171,6 +179,7 @@ int main() {
             send_all(conn, proto_serialize(out) + "\n");
             std::cout << "Hospital Server has sent the doctor lookup to the client." << std::endl;
         } else if (req.type == "lookup_availability") {
+            // Patient command: lookup <doctor>.
             std::string u_hash = getf(req, "u_hash");
             std::string doctor = getf(req, "doctor");
             std::string suffix = hash_suffix5(u_hash);
@@ -190,6 +199,7 @@ int main() {
             send_all(conn, proto_serialize(out) + "\n");
             std::cout << "The Hospital Server has sent the response to the client." << std::endl;
         } else if (req.type == "schedule") {
+            // Patient command: schedule.
             std::string u_hash = getf(req, "u_hash");
             std::string doctor = getf(req, "doctor");
             std::string time = getf(req, "time");
@@ -217,6 +227,7 @@ int main() {
             send_all(conn, proto_serialize(out) + "\n");
             std::cout << "The hospital server has sent the response to the client." << std::endl;
         } else if (req.type == "cancel") {
+            // Patient command: cancel.
             std::string u_hash = getf(req, "u_hash");
             std::string suffix = hash_suffix5(u_hash);
             std::cout << "Hospital Server has received a cancel request from user\nwith hash suffix: " << suffix
@@ -237,6 +248,7 @@ int main() {
             send_all(conn, proto_serialize(out) + "\n");
             std::cout << "The hospital server has sent the response to the client." << std::endl;
         } else if (req.type == "view_appointment") {
+            // Patient command: view_appointment.
             std::string u_hash = getf(req, "u_hash");
             std::string suffix = hash_suffix5(u_hash);
             std::cout << "Hospital server has received a view appointment request\nfrom a user with hash suffix " << suffix
@@ -257,6 +269,7 @@ int main() {
             send_all(conn, proto_serialize(out) + "\n");
             std::cout << "The hospital server has sent the response to the client." << std::endl;
         } else if (req.type == "view_appointments") {
+            // Doctor command: view_appointments.
             std::string doctor = getf(req, "doctor");
             std::cout << "Hospital Server has received a view appointments\nrequest from " << doctor
                       << " to view their schedule\ndetails using TCP over port " << HOSP_TCP_PORT << "." << std::endl;
@@ -275,6 +288,7 @@ int main() {
             send_all(conn, proto_serialize(out) + "\n");
             std::cout << "The hospital server has sent the response to the client." << std::endl;
         } else if (req.type == "prescribe") {
+            // Doctor command: prescribe (ask appointment server for illness first).
             std::string doctor = getf(req, "doctor");
             std::string patient_hash = getf(req, "patient_hash");
             std::string frequency = getf(req, "frequency");
@@ -329,6 +343,7 @@ int main() {
             send_all(conn, proto_serialize(out) + "\n");
             std::cout << "The hospital server has sent the response to the client." << std::endl;
         } else if (req.type == "view_prescription") {
+            // Doctor/patient command: view_prescription.
             std::string role = getf(req, "role", "patient");
             std::string doctor = getf(req, "doctor");
             std::string patient_hash = getf(req, "patient_hash");

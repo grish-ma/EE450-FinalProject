@@ -17,6 +17,7 @@ struct TimeBlock {
     int mm;
 };
 
+// Parse text time like "9:00" into numbers.
 static bool parse_time_block(const std::string &s, TimeBlock &tb) {
     std::vector<std::string> parts = split_char(s, ':');
     if (parts.size() != 2) {
@@ -30,14 +31,17 @@ static bool parse_time_block(const std::string &s, TimeBlock &tb) {
     return true;
 }
 
+// Project allows slots from 9:00 to 16:00.
 static bool allowed_time_block(const TimeBlock &tb) {
     return tb.mm == 0 && tb.hh >= 9 && tb.hh <= 16;
 }
 
+// Identifying a header line (a doctor header line has no ":" in it).
 static bool is_header_line(const std::string &s) {
     return !s.empty() && s.find(':') == std::string::npos;
 }
 
+// Convert appointments.txt lines into doctor -> slot lines map.
 static std::map<std::string, std::vector<std::string> > parse_appointments(const std::vector<std::string> &lines) {
     std::map<std::string, std::vector<std::string> > doctors;
     std::string cur;
@@ -60,6 +64,7 @@ static std::map<std::string, std::vector<std::string> > parse_appointments(const
     return doctors;
 }
 
+// Load appointments from file.
 static bool load_appointments(const std::string &path, std::map<std::string, std::vector<std::string> > &doctors) {
     std::vector<std::string> lines;
     if (!read_lines(path, lines)) {
@@ -70,6 +75,7 @@ static bool load_appointments(const std::string &path, std::map<std::string, std
     return true;
 }
 
+// Save appointments map back to file.
 static bool save_appointments(const std::string &path, const std::map<std::string, std::vector<std::string> > &doctors) {
     std::vector<std::string> lines;
     for (std::map<std::string, std::vector<std::string> >::const_iterator it = doctors.begin(); it != doctors.end(); ++it) {
@@ -81,6 +87,7 @@ static bool save_appointments(const std::string &path, const std::map<std::strin
     return write_lines(path, lines);
 }
 
+// Split by spaces and remove empty parts.
 static std::vector<std::string> split_ws(const std::string &s) {
     std::vector<std::string> raw = split_char(s, ' ');
     std::vector<std::string> out;
@@ -92,6 +99,7 @@ static std::vector<std::string> split_ws(const std::string &s) {
     return out;
 }
 
+// Return only free time slots for a doctor.
 static std::vector<std::string> blocks_available(const std::vector<std::string> &block_lines) {
     std::vector<std::string> avail;
     for (size_t i = 0; i < block_lines.size(); ++i) {
@@ -103,6 +111,7 @@ static std::vector<std::string> blocks_available(const std::vector<std::string> 
     return avail;
 }
 
+// Find a patient's appointment details.
 static bool find_patient_appointment(
     const std::map<std::string, std::vector<std::string> > &doctors,
     const std::string &patient_hash,
@@ -123,6 +132,7 @@ static bool find_patient_appointment(
     return false;
 }
 
+// Cancel a patient's appointment and free that time slot.
 static bool cancel_patient(
     std::map<std::string, std::vector<std::string> > &doctors,
     const std::string &patient_hash,
@@ -142,6 +152,7 @@ static bool cancel_patient(
     return false;
 }
 
+// Try to schedule one appointment.
 static bool schedule_patient(
     std::map<std::string, std::vector<std::string> > &doctors,
     const std::string &doctor,
@@ -180,6 +191,7 @@ static bool schedule_patient(
     return false;
 }
 
+// For doctor view_appointments: return only booked times.
 static std::vector<std::string> doctor_scheduled_times(const std::vector<std::string> &block_lines) {
     std::vector<std::string> out;
     for (size_t i = 0; i < block_lines.size(); ++i) {
@@ -192,9 +204,11 @@ static std::vector<std::string> doctor_scheduled_times(const std::vector<std::st
 }
 
 int main() {
+    // Load appointments file once at startup.
     std::map<std::string, std::vector<std::string> > doctors;
     load_appointments("appointments.txt", doctors);
 
+    // Create and bind UDP socket for Appointment Server.
     int udp_fd = create_udp_bound_socket(HOST, APPT_UDP_PORT);
     if (udp_fd < 0) {
         return 1;
@@ -202,7 +216,9 @@ int main() {
 
     std::cout << "Appointment Server is up and running using UDP on port " << APPT_UDP_PORT << "." << std::endl;
 
+    // Keep serving requests until Ctrl-C.
     while (true) {
+        // Wait for one UDP request from Hospital Server.
         std::string payload;
         std::string ip;
         int port = 0;
@@ -216,6 +232,7 @@ int main() {
         }
 
         if (req.type == "doctor_list_req") {
+            // Patient command: lookup (doctor list).
             std::cout << "The Appointment Server has received a doctor availability\nrequest." << std::endl;
             ProtoMessage resp;
             resp.type = "doctor_list_resp";
@@ -227,6 +244,7 @@ int main() {
             udp_send_to(udp_fd, ip, port, proto_serialize(resp));
             std::cout << "The Appointment Server has sent the lookup result to the\nHospital Server." << std::endl;
         } else if (req.type == "doctor_avail_req") {
+            // Patient command: lookup <doctor>.
             std::cout << "The Appointment Server has received a doctor availability\nrequest." << std::endl;
             std::string doctor = req.fields["doctor"];
             std::vector<std::string> avail;
@@ -247,6 +265,7 @@ int main() {
             udp_send_to(udp_fd, ip, port, proto_serialize(resp));
             std::cout << "The Appointment Server has sent the lookup result to the\nHospital Server." << std::endl;
         } else if (req.type == "schedule_req") {
+            // Patient command: schedule <doctor> <time> <illness>.
             std::string doctor = req.fields["doctor"];
             std::string time_block = req.fields["time"];
             std::string patient_hash = req.fields["patient_hash"];
@@ -271,6 +290,7 @@ int main() {
             resp.fields["other_avail"] = join_strings(other, ",");
             udp_send_to(udp_fd, ip, port, proto_serialize(resp));
         } else if (req.type == "view_appt_req") {
+            // Patient command: view_appointment.
             std::string patient_hash = req.fields["patient_hash"];
             std::cout << "Appointment Server has received a view appointment\ncommand for the user with hash suffix "
                       << hash_suffix5(patient_hash) << "." << std::endl;
@@ -292,6 +312,7 @@ int main() {
             }
             udp_send_to(udp_fd, ip, port, proto_serialize(resp));
         } else if (req.type == "cancel_req") {
+            // Patient command: cancel.
             std::string patient_hash = req.fields["patient_hash"];
             std::cout << "Appointment Server has received a cancel appointment\ncommand for the user with hash suffix: "
                       << hash_suffix5(patient_hash) << "." << std::endl;
@@ -312,6 +333,7 @@ int main() {
             }
             udp_send_to(udp_fd, ip, port, proto_serialize(resp));
         } else if (req.type == "view_appointments_req") {
+            // Doctor command: view_appointments.
             std::string doctor = req.fields["doctor"];
             std::cout << "Appointment Server has received a request to view\nappointments scheduled for " << doctor << "." << std::endl;
             std::vector<std::string> times;
@@ -329,6 +351,7 @@ int main() {
             resp.fields["times"] = join_strings(times, ",");
             udp_send_to(udp_fd, ip, port, proto_serialize(resp));
         } else if (req.type == "fetch_illness_req") {
+            // Doctor prescribe flow: get illness, then free old slot.
             std::string doctor = req.fields["doctor"];
             std::string patient_hash = req.fields["patient_hash"];
             std::cout << "Appointment Server has received a request from Hospital\nServer regarding information about a user with hash suffix\n"

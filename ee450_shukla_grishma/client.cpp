@@ -21,6 +21,7 @@ static bool is_true(const std::string &v) {
     return v == "1" || v == "true" || v == "True";
 }
 
+// Help text for patient users.
 static void patient_help() {
     std::cout << "Please enter the command:\n"
               << "<lookup>,\n"
@@ -32,6 +33,7 @@ static void patient_help() {
               << "<quit>" << std::endl;
 }
 
+// Help text for doctor users.
 static void doctor_help() {
     std::cout << "Please enter the command:\n"
               << "<view_appointments>,\n"
@@ -40,6 +42,7 @@ static void doctor_help() {
               << "<quit>" << std::endl;
 }
 
+// Open TCP connection to hospital, send one request, receive one response.
 static bool send_req(const ProtoMessage &req, ProtoMessage &resp, int &client_port) {
     int fd = connect_tcp(HOST, HOSP_TCP_PORT);
     if (fd < 0) {
@@ -61,11 +64,13 @@ static bool send_req(const ProtoMessage &req, ProtoMessage &resp, int &client_po
 }
 
 int main(int argc, char **argv) {
+    // Client login must be: ./client <username> <password>
     if (argc != 3) {
         std::cout << "Usage: ./client <username> <password>" << std::endl;
         return 0;
     }
 
+    // Read plaintext login and hash before sending.
     std::string username = argv[1];
     std::string password = argv[2];
     std::string u_hash = sha256_hash_trimmed(username);
@@ -74,6 +79,7 @@ int main(int argc, char **argv) {
     std::cout << "The client is up and running." << std::endl;
     std::cout << username << " sent an authentication request to the\nhospital server." << std::endl;
 
+    // Send login request to Hospital Server.
     ProtoMessage req;
     req.type = "auth";
     req.fields["u_hash"] = u_hash;
@@ -81,11 +87,13 @@ int main(int argc, char **argv) {
 
     ProtoMessage resp;
     int auth_port = 0;
+    // Stop if authentication failed.
     if (!send_req(req, resp, auth_port) || !is_true(getf(resp, "ok", "0"))) {
         std::cout << "The credentials are incorrect. Please try again." << std::endl;
         return 0;
     }
 
+    // Show role-specific success message and help commands.
     std::string role = getf(resp, "role");
     std::string doctor_name = getf(resp, "doctor_name");
     if (role == "doctor") {
@@ -101,6 +109,7 @@ int main(int argc, char **argv) {
     }
 
     std::string line;
+    // Command loop after successful login.
     while (std::getline(std::cin, line)) {
         line = trim_copy(line);
         if (line.empty()) {
@@ -132,6 +141,7 @@ int main(int argc, char **argv) {
         }
 
         if (role != "doctor") {
+            // ---------------- Patient commands ----------------
             if (cmd == "lookup" && p.size() == 1) {
                 std::cout << username << " sent a lookup request to the hospital\nserver." << std::endl;
                 ProtoMessage q;
@@ -278,6 +288,7 @@ int main(int argc, char **argv) {
                 }
             }
         } else {
+            // ---------------- Doctor commands ----------------
             std::string canonical_doctor = doctor_name.empty() ? username : doctor_name;
             if (cmd == "view_appointments" && p.size() == 1) {
                 std::cout << canonical_doctor << " sent a request to view their\nscheduled appointments to the Hospital Server." << std::endl;

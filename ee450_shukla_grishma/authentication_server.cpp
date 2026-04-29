@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+// Read users.txt and store (username_hash, password_hash) pairs.
 static std::set<std::pair<std::string, std::string> > load_users(const std::string &path) {
     std::set<std::pair<std::string, std::string> > out;
     std::vector<std::string> lines;
@@ -38,8 +39,10 @@ static std::set<std::pair<std::string, std::string> > load_users(const std::stri
 }
 
 int main() {
+    // Load all valid users once when the server starts.
     std::set<std::pair<std::string, std::string> > users = load_users("users.txt");
 
+    // Create and bind UDP socket for Authentication Server.
     int udp_fd = create_udp_bound_socket(HOST, AUTH_UDP_PORT);
     if (udp_fd < 0) {
         return 1;
@@ -47,7 +50,9 @@ int main() {
 
     std::cout << "Authentication Server is up and running using UDP on\nport " << AUTH_UDP_PORT << "." << std::endl;
 
+    // Keep listening forever until Ctrl-C.
     while (true) {
+        // Wait for one UDP request from Hospital Server.
         std::string payload;
         std::string ip;
         int port = 0;
@@ -63,12 +68,14 @@ int main() {
             continue;
         }
 
+        // Get hashed username/password from request.
         std::string u_hash = req.fields["u_hash"];
         std::string p_hash = req.fields["p_hash"];
         std::string suffix = hash_suffix5(u_hash);
 
         std::cout << "Authentication Server has received an authentication\nrequest for a user with hash suffix: " << suffix << "." << std::endl;
 
+        // Check if this exact pair exists in users.txt data.
         bool ok = users.find(std::make_pair(u_hash, p_hash)) != users.end();
         if (ok) {
             std::cout << "Authentication succeeded for a user with hash suffix:\n" << suffix << "." << std::endl;
@@ -76,6 +83,7 @@ int main() {
             std::cout << "Authentication failed for a user with hash suffix:\n" << suffix << "." << std::endl;
         }
 
+        // Send auth result back to Hospital Server.
         ProtoMessage resp;
         resp.type = "auth_resp";
         resp.fields["ok"] = ok ? "1" : "0";

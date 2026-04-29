@@ -5,11 +5,13 @@
 #include <string>
 #include <vector>
 
+// Parsed message format: TYPE|k=v|k=v
 struct ProtoMessage {
     std::string type;
     std::map<std::string, std::string> fields;
 };
 
+// Small string helpers and protocol parse/serialize helpers.
 std::string trim_copy(const std::string &s);
 std::vector<std::string> split_char(const std::string &s, char delim);
 std::string join_strings(const std::vector<std::string> &parts, const std::string &sep);
